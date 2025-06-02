@@ -20,7 +20,7 @@ jobs:
           node-version: 20
           cache: "npm"
 
-      # 3. npm 캐시 및 next.js 빌드 캐시 설정
+      # 3. npm 캐시 및 Next.js 빌드 캐시 설정
       - name: Cache node_modules and .next
         uses: actions/cache@v3
         with:
@@ -45,7 +45,7 @@ jobs:
           npm run build
           mkdir -p output
           cp -r .next/standalone/* output/
-          cp -r .next/static output/.next/
+          [ -d .next/static ] && cp -r .next/static output/.next/
           cp -r public output/public/
 
       # 7. Lambda에 업로드할 zip 압축 생성
@@ -62,11 +62,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # 9. 정적 파일을 S3에 업로드
+      # 9. 정적 파일을 S3에 업로드 (조건부 static 폴더 체크)
       - name: Upload static assets to S3
         run: |
           aws s3 sync output/public ${{ secrets.S3_STORAGE_ADDRESS }}/public --delete
-          aws s3 sync output/.next/static ${{ secrets.S3_STORAGE_ADDRESS }}/_next/static --delete
+          if [ -d "output/.next/static" ]; then
+            aws s3 sync output/.next/static ${{ secrets.S3_STORAGE_ADDRESS }}/_next/static --delete
+          else
+            echo "⚠️ Skipping .next/static upload — directory not found"
+          fi
 
       # 10. Lambda 함수 코드 업데이트
       - name: Update Lambda function
