@@ -1,4 +1,4 @@
-name: Deploy to EC2
+name: Deploy Next.js to Lambda + S3 + CloudFront
 
 on:
   push:
@@ -9,31 +9,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "18"
+          node-version: 20
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build Next.js
-        run: npm run build
-
-      - name: Export SSH key
+      - name: Build Next.js standalone
         run: |
-          echo "${{ secrets.EC2_KEY }}" | base64 -d > ec2_key.pem
-          chmod 600 ec2_key.pem
+          npm run build
+          mkdir -p output
+          cp -r .next/standalone/* output/
+          cp -r .next/static output/.next/
+          cp -r public output/public/
 
-      - name: Deploy to EC2 via SSH
+      - name: Zip Lambda package
         run: |
-          scp -i ec2_key.pem -r . ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/app
-          ssh -i ec2_key.pem ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
-            cd /home/ubuntu/app
-            npm install --omit=dev
-            pm2 delete all || true
-            pm2 start npm --name "nextjs" -- start
-          EOF
+          cd output
+          zip -r ../lambda.zip .
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Upload static assets to S3
+        run: |
+          aws s3 sync output/public s3://my-ci-cd-test-meztama/public --delete
+          aws s3 sync output/.next/static s3://my-ci-cd-test-meztama/_next/static --delete
+
+      - name: Update Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name YOUR_LAMBDA_NAME \
+            --zip-file fileb://lambda.zip
