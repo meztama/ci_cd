@@ -76,5 +76,5 @@ jobs:
       - name: Update Lambda function
         run: |
           aws lambda update-function-code \
-            --function-name YOUR_LAMBDA_NAME \
+            --function-name nextJs \
             --zip-file fileb://lambda.zip
