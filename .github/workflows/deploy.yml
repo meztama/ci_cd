@@ -9,19 +9,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      # 1. GitHub 저장소 체크아웃
+      - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 2. Node.js 설정
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
           cache: "npm"
 
+      # 3. npm 캐시 및 next.js 빌드 캐시 설정
+      - name: Cache node_modules and .next
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            .next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-next-
+
+      # 4. 의존성 설치
       - name: Install dependencies
         run: npm install
 
-      - name: Build Next.js (standalone)
+      # 5. lightningcss 네이티브 바이너리 오류 해결
+      - name: Rebuild lightningcss
+        run: npm rebuild lightningcss
+
+      # 6. Next.js Standalone 빌드
+      - name: Build Next.js (standalone mode)
         run: |
           npm run build
           mkdir -p output
@@ -29,11 +48,13 @@ jobs:
           cp -r .next/static output/.next/
           cp -r public output/public/
 
+      # 7. Lambda에 업로드할 zip 압축 생성
       - name: Zip Lambda package
         run: |
           cd output
           zip -r ../lambda.zip .
 
+      # 8. AWS 자격 증명 설정
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -41,11 +62,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: ap-northeast-2
 
+      # 9. 정적 파일을 S3에 업로드
       - name: Upload static assets to S3
         run: |
           aws s3 sync output/public s3://my-ci-cd-test-meztama/public --delete
           aws s3 sync output/.next/static s3://my-ci-cd-test-meztama/_next/static --delete
 
+      # 10. Lambda 함수 코드 업데이트
       - name: Update Lambda function
         run: |
           aws lambda update-function-code \

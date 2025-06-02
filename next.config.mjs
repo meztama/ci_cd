@@ -4,7 +4,7 @@ const nextConfig = {
   output: "standalone",
   reactStrictMode: true,
   experimental: {
-    // serverActions: true,
+    serverActions: {},
   },
   // ... 기타 설정
 };
