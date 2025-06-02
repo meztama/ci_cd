@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. GitHub 저장소 체크아웃
+      # 1. 저장소 체크아웃
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -20,7 +20,7 @@ jobs:
           node-version: 20
           cache: "npm"
 
-      # 3. npm 캐시 및 Next.js 빌드 캐시 설정
+      # 3. npm 및 빌드 캐시 설정
       - name: Cache node_modules and .next
         uses: actions/cache@v3
         with:
@@ -35,20 +35,30 @@ jobs:
       - name: Install dependencies (with optional)
         run: npm install --include=optional
 
-      # 5. lightningcss 네이티브 바이너리 강제 재설치
+      # 5. lightningcss 네이티브 바이너리 재설치
       - name: Rebuild lightningcss native binary
         run: npm rebuild lightningcss
 
-      # 6. Next.js Standalone 빌드
+      # 6. Next.js Standalone 빌드 및 자산 복사
       - name: Build Next.js (standalone mode)
         run: |
           npm run build
           mkdir -p output
           cp -r .next/standalone/* output/
-          [ -d .next/static ] && cp -r .next/static output/.next/
+
+          echo "📦 Checking for static assets..."
+          if [ -d .next/static ]; then
+            echo "✅ Found .next/static"
+            mkdir -p output/.next
+            cp -r .next/static output/.next/
+            ls -R output/.next/static
+          else
+            echo "⚠️ .next/static not found"
+          fi
+
           cp -r public output/public/
 
-      # 7. Lambda에 업로드할 zip 압축 생성
+      # 7. Lambda용 zip 압축
       - name: Zip Lambda package
         run: |
           cd output
@@ -62,19 +72,29 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # 9. 정적 파일을 S3에 업로드 (조건부 static 폴더 체크)
+      # 9. 정적 자산 S3 업로드
       - name: Upload static assets to S3
         run: |
           aws s3 sync output/public ${{ secrets.S3_STORAGE_ADDRESS }}/public --delete
+
           if [ -d "output/.next/static" ]; then
+            echo "✅ Uploading _next/static to S3"
             aws s3 sync output/.next/static ${{ secrets.S3_STORAGE_ADDRESS }}/_next/static --delete
           else
-            echo "⚠️ Skipping .next/static upload — directory not found"
+            echo "⚠️ Skipping _next/static upload — directory not found"
           fi
 
-      # 10. Lambda 함수 코드 업데이트
+      # 10. Lambda 함수 업데이트
       - name: Update Lambda function
         run: |
           aws lambda update-function-code \
             --function-name nextJs \
             --zip-file fileb://lambda.zip
+
+      # 11. (선택) CloudFront 캐시 무효화
+      - name: Invalidate CloudFront cache
+        if: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
