@@ -87,6 +87,11 @@ jobs:
       # 10. Lambda 함수 업데이트
       - name: Update Lambda function
         run: |
+          aws lambda update-function-configuration \
+            --function-name nextJs \
+            --handler server.handler \
+            --runtime nodejs20.x
+
           aws lambda update-function-code \
             --function-name nextJs \
             --zip-file fileb://lambda.zip
