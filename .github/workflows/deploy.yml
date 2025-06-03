@@ -28,7 +28,7 @@ jobs:
           mkdir -p lambda
           cp -r .next/standalone/* lambda/
           mkdir -p lambda/.next
-          cp required-server-files.json lambda/.next/required-server-files.json
+          cp .next/required-server-files.json lambda/.next/required-server-files.json
 
           if [ -d ".next/static" ]; then
             cp -r .next/static lambda/.next/static
