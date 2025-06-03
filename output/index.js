@@ -10,43 +10,51 @@ const handle = app.getRequestHandler();
 let serverReady = false;
 
 exports.handler = async (event, context) => {
-  if (!serverReady) {
-    await app.prepare();
-    serverReady = true;
+  try {
+    if (!serverReady) {
+      await app.prepare();
+      serverReady = true;
+    }
+
+    const { rawPath, queryStringParameters, headers, body, requestContext } =
+      event;
+
+    const path = rawPath || "/";
+    const method = requestContext?.http?.method || "GET";
+
+    const req = new createServer.IncomingMessage();
+    req.url =
+      path +
+      (queryStringParameters
+        ? "?" + new URLSearchParams(queryStringParameters).toString()
+        : "");
+    req.method = method;
+    req.headers = headers;
+    req.body = body;
+
+    return new Promise((resolve, reject) => {
+      const res = new createServer.ServerResponse(req);
+      let responseBody = "";
+
+      res.write = (chunk) => {
+        responseBody += chunk;
+      };
+
+      res.end = () => {
+        resolve({
+          statusCode: res.statusCode || 200,
+          headers: res.getHeaders(),
+          body: responseBody,
+        });
+      };
+
+      handle(req, res, parse(req.url, true));
+    });
+  } catch (error) {
+    console.error("Error in Lambda handler:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Internal Server Error" }),
+    };
   }
-
-  const { rawPath, queryStringParameters, headers, body, requestContext } =
-    event;
-
-  const path = rawPath || "/";
-  const method = requestContext?.http?.method || "GET";
-
-  const req = new createServer.IncomingMessage();
-  req.url =
-    path +
-    (queryStringParameters
-      ? "?" + new URLSearchParams(queryStringParameters).toString()
-      : "");
-  req.method = method;
-  req.headers = headers;
-  req.body = body;
-
-  return new Promise((resolve, reject) => {
-    const res = new createServer.ServerResponse(req);
-    let responseBody = "";
-
-    res.write = (chunk) => {
-      responseBody += chunk;
-    };
-
-    res.end = () => {
-      resolve({
-        statusCode: res.statusCode || 200,
-        headers: res.getHeaders(),
-        body: responseBody,
-      });
-    };
-
-    handle(req, res, parse(req.url, true));
-  });
 };
