@@ -54,6 +54,14 @@ jobs:
           echo "📏 압축 파일 용량 확인"
           du -sh ../layer.zip
 
+      # 6. AWS 자격 증명 설정
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
       # 3.4 Layer S3 업로드 및 Lambda Layer 배포
       - name: Upload Layer.zip to S3 and publish Lambda Layer
         run: |
@@ -99,14 +107,6 @@ jobs:
         run: |
           cd lambda
           zip -r ../lambda.zip .
-
-      # 6. AWS 자격 증명 설정
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
 
       # 7. Lambda zip S3 업로드
       - name: Upload Lambda zip to S3
