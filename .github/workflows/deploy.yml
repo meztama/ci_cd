@@ -30,7 +30,6 @@ jobs:
           npm run build
           mkdir -p lambda
           cp -r .next/standalone lambda
-          cp -r .next/server lambda/.next/server
           cp index.js lambda/index.js
 
       # 5. Lambda용 파일 zip
