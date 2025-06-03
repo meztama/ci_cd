@@ -20,39 +20,26 @@ jobs:
           node-version: 20
           cache: "npm"
 
-      # 3. npm 및 빌드 캐시 설정
-      - name: Cache node_modules and .next
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.npm
-            .next/cache
-          key: ${{ runner.os }}-next-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-next-
-
-      # 4. 의존성 설치 (전체 설치)
-      - name: Install all dependencies
+      # 3. 의존성 설치
+      - name: Install dependencies
         run: npm install
 
-      # 5. 빌드 및 Lambda 배포 디렉토리 구성
-      - name: Build Next.js (full SSR build)
+      # 4. Next.js 빌드 및 Lambda용 파일 구성
+      - name: Build and prepare Lambda files
         run: |
           npm run build
-          mkdir -p output
-          cp -r .next output/.next
-          cp -r public output/public
-          cp -r node_modules output/node_modules
-          cp package.json output/package.json
-          cp index.js output/index.js
+          mkdir -p lambda
+          cp -r .next/standalone lambda
+          cp -r .next/server lambda/.next/server
+          cp index.js lambda/index.js
 
-      # 6. Lambda zip 압축
+      # 5. Lambda용 파일 zip
       - name: Zip Lambda package
         run: |
-          cd output
+          cd lambda
           zip -r ../lambda.zip .
 
-      # 7. AWS 자격 증명 설정
+      # 6. AWS 자격 증명 구성
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -60,32 +47,32 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # 8. Lambda zip을 S3에 업로드
+      # 7. Lambda zip 파일 S3 업로드
       - name: Upload Lambda zip to S3
         run: |
           aws s3 cp lambda.zip s3://${{ secrets.S3_LAMBDA_ADDRESS }}/lambda/lambda.zip
 
-      # 9. Lambda 함수 업데이트 (S3 경유)
-      - name: Update Lambda function from S3
+      # 8. Lambda 코드 업데이트
+      - name: Update Lambda function
         run: |
           aws lambda update-function-code \
             --function-name nextJs \
             --s3-bucket ${{ secrets.S3_LAMBDA_ADDRESS }} \
             --s3-key lambda/lambda.zip
 
-      # 10. 정적 자산 S3 업로드
+      # 9. 정적 자산 S3 업로드 (.next/static, public)
       - name: Upload static assets to S3
         run: |
-          aws s3 sync output/public ${{ secrets.S3_STORAGE_ADDRESS }}/public --delete
+          aws s3 sync public ${{ secrets.S3_STORAGE_ADDRESS }}/public --delete
 
-          if [ -d "output/.next/static" ]; then
+          if [ -d ".next/static" ]; then
             echo "✅ Uploading _next/static to S3"
-            aws s3 sync output/.next/static ${{ secrets.S3_STORAGE_ADDRESS }}/_next/static --delete
+            aws s3 sync .next/static ${{ secrets.S3_STORAGE_ADDRESS }}/_next/static --delete
           else
             echo "⚠️ Skipping _next/static upload — directory not found"
           fi
 
-      # 11. (선택) CloudFront 캐시 무효화
+      # 10. CloudFront 캐시 무효화 (선택)
       - name: Invalidate CloudFront cache
         run: |
           if [ -n "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
@@ -93,5 +80,5 @@ jobs:
               --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
               --paths "/*"
           else
-            echo "CLOUDFRONT_DISTRIBUTION_ID secret not set, skipping invalidation."
+            echo "CLOUDFRONT_DISTRIBUTION_ID not set — skipping invalidation"
           fi
