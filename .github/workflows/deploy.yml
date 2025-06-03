@@ -22,10 +22,17 @@ jobs:
 
       # 3. 의존성 설치
       - name: Install dependencies
-        run:
-          npm ci
+        run: npm ci
 
-          # 3.5 Lambda Layer 최적화 및 압축
+      # 3.2 Lambda Layer 패키지 준비
+      - name: Setup Lambda Layer dependencies
+        run: |
+          mkdir -p layer/nodejs
+          cd layer/nodejs
+          npm init -y
+          npm install next react react-dom
+
+      # 3.5 Lambda Layer 최적화 및 압축
       - name: Optimize and Zip Lambda Layer
         run: |
           cd layer
