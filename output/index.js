@@ -1,35 +1,52 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-require-imports */
-// index.js (==> output/index.js 에 위치해야 함)
-const nextServer = require("./server.js"); // standalone 빌드로 생성된 서버
-const http = require("http");
-const { Readable } = require("stream");
+const { createServer } = require("http");
+const { parse } = require("url");
+const next = require("next");
+
+const app = next({ dev: false });
+const handle = app.getRequestHandler();
+
+let serverReady = false;
 
 exports.handler = async (event, context) => {
+  if (!serverReady) {
+    await app.prepare();
+    serverReady = true;
+  }
+
+  const { rawPath, queryStringParameters, headers, body, requestContext } =
+    event;
+
+  const path = rawPath || "/";
+  const method = requestContext?.http?.method || "GET";
+
+  const req = new createServer.IncomingMessage();
+  req.url =
+    path +
+    (queryStringParameters
+      ? "?" + new URLSearchParams(queryStringParameters).toString()
+      : "");
+  req.method = method;
+  req.headers = headers;
+  req.body = body;
+
   return new Promise((resolve, reject) => {
-    const req = new Readable();
-    req.push(event.body || "");
-    req.push(null);
+    const res = new createServer.ServerResponse(req);
+    let responseBody = "";
 
-    req.url = event.rawPath || "/";
-    req.method = event.requestContext.http.method;
-    req.headers = event.headers;
-
-    const res = new http.ServerResponse(req);
-
-    let body = "";
     res.write = (chunk) => {
-      body += chunk;
+      responseBody += chunk;
     };
 
     res.end = () => {
       resolve({
         statusCode: res.statusCode || 200,
         headers: res.getHeaders(),
-        body,
+        body: responseBody,
       });
     };
 
-    nextServer.default.emit("request", req, res);
+    handle(req, res, parse(req.url, true));
   });
 };
