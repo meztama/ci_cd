@@ -35,8 +35,18 @@ jobs:
         run: |
           mkdir -p layer/nodejs
           cd layer/nodejs
-          echo '{ "name": "lambda-layer", "version": "1.0.0", "private": true }' > package.json
-          npm install next react react-dom @next/env
+          echo '{
+            "name": "lambda-layer",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": {
+              "next": "^15.3.2",
+              "react": "^19.0.0",
+              "react-dom": "^19.0.0",
+              "@next/env": "^15.3.2"
+            }
+          }' > package.json
+          npm install --omit=dev
 
       # 6. Layer 최적화 및 압축
       - name: Optimize and zip Lambda Layer
