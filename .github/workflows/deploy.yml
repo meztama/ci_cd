@@ -47,7 +47,6 @@ jobs:
           cp -r .next/ output/.next
           cp -r node_modules output/node_modules
           cp -r public output/public
-          cp server.js output/server.js # 빌드된 경우만
 
           echo "📦 Checking for static assets..."
           if [ -d .next/static ]; then
