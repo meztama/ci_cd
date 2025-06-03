@@ -87,6 +87,10 @@ jobs:
           cp -r .next/standalone/* lambda/
           mkdir -p lambda/.next
           cp .next/required-server-files.json lambda/.next/required-server-files.json
+          # lambda 디렉터리 구성 시 추가
+          cp -r node_modules/next lambda/node_modules/
+
+
           if [ -d ".next/static" ]; then
             cp -r .next/static lambda/.next/static
           fi
