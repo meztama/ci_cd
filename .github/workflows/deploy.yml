@@ -36,7 +36,7 @@ jobs:
           mkdir -p layer/nodejs
           cd layer/nodejs
           echo '{ "name": "lambda-layer", "version": "1.0.0", "private": true }' > package.json
-          npm install react react-dom
+          npm install next react react-dom
 
       # 6. Layer 최적화 및 압축
       - name: Optimize and zip Lambda Layer
