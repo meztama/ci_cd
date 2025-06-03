@@ -31,20 +31,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-next-
 
-      # 4. 의존성 설치
-      - name: Install dependencies (with optional)
-        run: npm install --include=optional
+      # 4. 의존성 설치 (devDependencies 제외)
+      - name: Install production dependencies
+        run: npm ci --omit=dev
 
       # 5. 빌드 및 Lambda 배포 디렉토리 구성
       - name: Build Next.js (standalone mode)
         run: |
           npm run build
           mkdir -p output
-          cp -r .next/ output/.next
-          cp -r node_modules/ output/node_modules
-          cp -r public/ output/public
-          [ -f server.js ] && cp server.js output/server.js
-          [ -f index.js ] && cp index.js output/index.js
+          cp -r .next/standalone/* output/
+          cp -r .next/static output/.next/static
+          cp -r public output/public
 
       # 6. Lambda zip 압축
       - name: Zip Lambda package
@@ -60,7 +58,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # 8. Lambda 배포 zip을 S3에 업로드
+      # 8. Lambda zip을 S3에 업로드
       - name: Upload Lambda zip to S3
         run: |
           aws s3 cp lambda.zip s3://${{ secrets.S3_LAMBDA_ADDRESS }}/lambda/lambda.zip
@@ -68,11 +66,6 @@ jobs:
       # 9. Lambda 함수 업데이트 (S3 경유)
       - name: Update Lambda function from S3
         run: |
-          aws lambda update-function-configuration \
-            --function-name nextJs \
-            --handler index.handler \
-            --runtime nodejs20.x
-
           aws lambda update-function-code \
             --function-name nextJs \
             --s3-bucket ${{ secrets.S3_LAMBDA_ADDRESS }} \
