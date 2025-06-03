@@ -55,7 +55,6 @@ jobs:
           echo "🧹 Removing unnecessary files from layer..."
           rm -rf nodejs/node_modules/**/*.md || true
           rm -rf nodejs/node_modules/**/*.map || true
-          rm -rf nodejs/node_modules/@next || true
           find nodejs -name "test" -type d | xargs rm -rf || true
           find nodejs -name "__tests__" -type d | xargs rm -rf || true
           echo "📦 Creating layer.zip..."
