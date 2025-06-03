@@ -36,7 +36,13 @@ jobs:
           cp -r .next/standalone/* lambda/
 
           # .next/static 정적 자산도 필요 (SSR에서 사용됨)
-          cp -r .next/static lambda/.next/static
+          # .next/static 정적 자산 복사 (있을 경우만)
+          if [ -d ".next/static" ]; then
+            mkdir -p lambda/.next
+            cp -r .next/static lambda/.next/static
+          else
+            echo "⚠️ .next/static not found — skipping copy"
+          fi
 
           # 핸들러 파일 포함
           cp index.js lambda/index.js
