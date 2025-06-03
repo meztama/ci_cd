@@ -1,5 +1,3 @@
-# 📦 Next.js 프로젝트를 AWS Lambda + S3 + CloudFront에 배포하기 위한 GitHub Actions Workflow
-
 name: Deploy Next.js to Lambda + S3 + CloudFront (with Layer)
 
 on:
@@ -30,7 +28,7 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # 5. Lambda Layer를 위한 최소 패키지 설치
+      # 5. Lambda Layer를 위한 최소 패키지 설치 (react/react-dom만 포함)
       - name: Setup minimal Lambda Layer dependencies
         run: |
           mkdir -p layer/nodejs
@@ -40,10 +38,8 @@ jobs:
             "version": "1.0.0",
             "private": true,
             "dependencies": {
-              "next": "^15.3.2",
               "react": "^19.0.0",
-              "react-dom": "^19.0.0",
-              "@next/env": "^15.3.2"
+              "react-dom": "^19.0.0"
             }
           }' > package.json
           npm install --omit=dev
@@ -53,10 +49,10 @@ jobs:
         run: |
           cd layer
           echo "🧹 Removing unnecessary files from layer..."
-          rm -rf nodejs/node_modules/**/*.md || true
-          rm -rf nodejs/node_modules/**/*.map || true
-          find nodejs -name "test" -type d | xargs rm -rf || true
-          find nodejs -name "__tests__" -type d | xargs rm -rf || true
+          find nodejs -type f -name "*.md" -delete || true
+          find nodejs -type f -name "*.map" -delete || true
+          find nodejs -type d -name "test" -exec rm -rf {} + || true
+          find nodejs -type d -name "__tests__" -exec rm -rf {} + || true
           echo "📦 Creating layer.zip..."
           zip -r layer.zip nodejs
 
@@ -97,7 +93,6 @@ jobs:
           cp index.js lambda/index.js
 
           echo "🧹 Removing duplicated modules in Lambda package..."
-          rm -rf lambda/node_modules/next || true
           rm -rf lambda/node_modules/react || true
           rm -rf lambda/node_modules/react-dom || true
 
