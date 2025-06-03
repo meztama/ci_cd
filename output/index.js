@@ -1,60 +1,76 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { createServer } = require("http");
+/* eslint-disable @typescript-eslint/no-unused-vars */
+const http = require("http");
+const { Readable } = require("stream");
 const { parse } = require("url");
 const next = require("next");
 
 const app = next({ dev: false });
 const handle = app.getRequestHandler();
 
-let serverReady = false;
+let serverInitialized = false;
 
 exports.handler = async (event, context) => {
   try {
-    if (!serverReady) {
+    if (!serverInitialized) {
       await app.prepare();
-      serverReady = true;
+      serverInitialized = true;
     }
 
-    const { rawPath, queryStringParameters, headers, body, requestContext } =
-      event;
+    const { rawPath, rawQueryString, headers, requestContext, body } = event;
 
-    const path = rawPath || "/";
     const method = requestContext?.http?.method || "GET";
+    const path = rawPath || "/";
+    const query = rawQueryString ? `?${rawQueryString}` : "";
 
-    const req = new createServer.IncomingMessage();
-    req.url =
-      path +
-      (queryStringParameters
-        ? "?" + new URLSearchParams(queryStringParameters).toString()
-        : "");
+    const req = new Readable();
+    req.url = path + query;
     req.method = method;
     req.headers = headers;
-    req.body = body;
+    req.push(body || null);
+    req.push(null);
 
-    return new Promise((resolve, reject) => {
-      const res = new createServer.ServerResponse(req);
-      let responseBody = "";
+    const res = new http.ServerResponse(req);
 
-      res.write = (chunk) => {
-        responseBody += chunk;
-      };
+    let responseBody = "";
+    let responseHeaders = {};
+    res.write = (chunk) => {
+      responseBody += chunk;
+    };
+    res.writeHead = (statusCode, headers) => {
+      res.statusCode = statusCode;
+      responseHeaders = headers;
+    };
+    res.end = (chunk) => {
+      if (chunk) responseBody += chunk;
+      return resolveResponse();
+    };
 
-      res.end = () => {
+    const resolveResponse = () =>
+      new Promise((resolve) => {
         resolve({
           statusCode: res.statusCode || 200,
-          headers: res.getHeaders(),
+          headers: responseHeaders,
+          body: responseBody,
+        });
+      });
+
+    return await new Promise((resolve) => {
+      res.end = (chunk) => {
+        if (chunk) responseBody += chunk;
+        resolve({
+          statusCode: res.statusCode || 200,
+          headers: responseHeaders,
           body: responseBody,
         });
       };
-
       handle(req, res, parse(req.url, true));
     });
-  } catch (error) {
-    console.error("Error in Lambda handler:", error);
+  } catch (err) {
+    console.error("SSR handler error:", err);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Internal Server Error" }),
+      body: "Internal Server Error (SSR)",
     };
   }
 };
