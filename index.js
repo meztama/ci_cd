@@ -4,8 +4,13 @@ const http = require("http");
 const { Readable } = require("stream");
 const { parse } = require("url");
 const next = require("next");
+const path = require("path");
 
-const app = next({ dev: false });
+// 🔧 명시적으로 config 참조
+const app = next({
+  dev: false,
+  conf: require("./.next/required-server-files.json"),
+});
 const handle = app.getRequestHandler();
 
 let serverInitialized = false;
@@ -20,11 +25,11 @@ exports.handler = async (event, context) => {
     const { rawPath, rawQueryString, headers, requestContext, body } = event;
 
     const method = requestContext?.http?.method || "GET";
-    const path = rawPath || "/";
+    const pathName = rawPath || "/";
     const query = rawQueryString ? `?${rawQueryString}` : "";
 
     const req = new Readable();
-    req.url = path + query;
+    req.url = pathName + query;
     req.method = method;
     req.headers = headers;
     req.push(body || null);
@@ -34,6 +39,16 @@ exports.handler = async (event, context) => {
 
     let responseBody = "";
     let responseHeaders = {};
+
+    const resolveResponse = () =>
+      new Promise((resolve) => {
+        resolve({
+          statusCode: res.statusCode || 200,
+          headers: responseHeaders,
+          body: responseBody,
+        });
+      });
+
     res.write = (chunk) => {
       responseBody += chunk;
     };
@@ -45,15 +60,6 @@ exports.handler = async (event, context) => {
       if (chunk) responseBody += chunk;
       return resolveResponse();
     };
-
-    const resolveResponse = () =>
-      new Promise((resolve) => {
-        resolve({
-          statusCode: res.statusCode || 200,
-          headers: responseHeaders,
-          body: responseBody,
-        });
-      });
 
     return await new Promise((resolve) => {
       res.end = (chunk) => {
