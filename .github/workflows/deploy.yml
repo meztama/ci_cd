@@ -36,9 +36,11 @@ jobs:
           cp -r .next/standalone/* lambda/
 
           # .next/static 정적 자산도 필요 (SSR에서 사용됨)
+          mkdir -p lambda/.next
+          cp .next/required-server-files.json lambda/.next/required-server-files.json
+
           # .next/static 정적 자산 복사 (있을 경우만)
           if [ -d ".next/static" ]; then
-            mkdir -p lambda/.next
             cp -r .next/static lambda/.next/static
           else
             echo "⚠️ .next/static not found — skipping copy"
