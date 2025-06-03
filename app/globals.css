@@ -1,4 +1,8 @@
-@import "tailwindcss";
+/* app/globals.css */
+/* ✅ Tailwind CSS v4.x 스타일 */
+@import "tailwindcss/preflight";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
 :root {
   --background: #ffffff;
