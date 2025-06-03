@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
       # 3.2 Lambda Layer 패키지 준비
       - name: Setup Lambda Layer dependencies
         run: |
@@ -50,6 +53,25 @@ jobs:
 
           echo "📏 Final zip size:"
           du -sh ../layer.zip
+
+      # 3.6 Lambda Layer S3 업로드 및 LayerVersionArn 추출
+      - name: Upload Layer.zip to S3 and publish Lambda Layer
+        run: |
+          aws s3 cp layer.zip s3://${{ secrets.S3_LAMBDA_ADDRESS }}/layer/layer.zip
+
+          echo "🛰 Publishing new Lambda Layer version..."
+          PUBLISH_RESULT=$(aws lambda publish-layer-version \
+            --layer-name next-layer \
+            --content S3Bucket=${{ secrets.S3_LAMBDA_ADDRESS }},S3Key=layer/layer.zip \
+            --compatible-runtimes nodejs20.x \
+            --description "Next.js runtime dependencies" \
+            --region ap-northeast-2)
+
+          LAYER_ARN=$(echo $PUBLISH_RESULT | jq -r '.LayerVersionArn')
+          echo "✅ LayerVersionArn: $LAYER_ARN"
+
+          # 임시 파일로 저장 (후속 단계에서 사용 가능)
+          echo "LAMBDA_LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
       # 4. Next.js 빌드 및 Lambda 파일 구성
       - name: Build and prepare Lambda files
@@ -122,7 +144,7 @@ jobs:
         run: |
           aws lambda update-function-configuration \
             --function-name nextJs \
-            --layers ${{ secrets.LAMBDA_LAYER_ARN }}
+            --layers $LAMBDA_LAYER_ARN
 
       # 11. 정적 자산 S3 업로드
       - name: Upload static assets to S3
