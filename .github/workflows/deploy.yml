@@ -36,8 +36,8 @@ jobs:
         run: npm install --include=optional
 
       # 5. lightningcss 네이티브 바이너리 재설치
-      - name: Rebuild lightningcss native binary
-        run: npm rebuild lightningcss
+      # - name: Rebuild lightningcss native binary
+      #   run: npm rebuild lightningcss
 
       # 6. Next.js Standalone 빌드 및 자산 복사
       - name: Build Next.js (standalone mode)
