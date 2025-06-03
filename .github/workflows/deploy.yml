@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 4. Next.js 빌드 및 Lambda용 파일 구성
+      # 4. Next.js 빌드 및 Lambda 파일 구성
       - name: Build and prepare Lambda files
         run: |
           npm run build
@@ -40,16 +40,13 @@ jobs:
 
           cp index.js lambda/index.js
 
-          # 🔽 Layer에서 이미 포함한 모듈 자동 제거
+          echo "🧹 Removing duplicated modules already in Lambda Layer..."
           LAYER_MODULES=("next" "react" "react-dom")
           for pkg in "${LAYER_MODULES[@]}"; do
-            TARGET="lambda/node_modules/$pkg"
-            if [ -d "$TARGET" ]; then
-              echo "🧹 Removing $TARGET"
-              rm -rf "$TARGET"
-            else
-              echo "✅ $pkg not found in lambda/node_modules — skipping"
-            fi
+            echo "  - Removing lambda/node_modules/$pkg"
+            rm -rf lambda/node_modules/$pkg
+            echo "  - Removing nested: $(find lambda/node_modules -type d -path "*$pkg*" | grep -E "$pkg@")"
+            find lambda/node_modules -type d -path "*$pkg*" | grep -E "$pkg@" | xargs rm -rf || true
           done
 
       # 5. Lambda 압축 파일 생성
@@ -71,7 +68,7 @@ jobs:
         run: |
           aws s3 cp lambda.zip s3://${{ secrets.S3_LAMBDA_ADDRESS }}/lambda/lambda.zip
 
-      # 8. Lambda 코드만 업데이트
+      # 8. Lambda 함수 코드만 먼저 업데이트
       - name: Update Lambda function code only
         run: |
           aws lambda update-function-code \
@@ -80,21 +77,21 @@ jobs:
             --s3-key lambda/lambda.zip
 
       # 9. Lambda 상태 확인 후 Layer 적용
-      - name: Wait for Lambda update to complete
+      - name: Wait for Lambda to become Active
         run: |
-          echo "⏳ Waiting for Lambda to become Active..."
+          echo "⏳ Waiting for Lambda update to complete..."
           for i in {1..30}; do
             STATUS=$(aws lambda get-function-configuration --function-name nextJs --query 'LastUpdateStatus' --output text)
             echo "🔍 Status: $STATUS"
             if [ "$STATUS" = "Successful" ]; then
-              echo "✅ Update completed"
+              echo "✅ Lambda update complete"
               break
             fi
             sleep 5
           done
 
       # 10. Lambda Layer 연결
-      - name: Update Lambda function configuration (Layer)
+      - name: Attach Lambda Layer
         run: |
           aws lambda update-function-configuration \
             --function-name nextJs \
