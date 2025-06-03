@@ -40,6 +40,18 @@ jobs:
 
           cp index.js lambda/index.js
 
+          # 🔽 Layer에서 이미 포함한 모듈 자동 제거
+          LAYER_MODULES=("next" "react" "react-dom")
+          for pkg in "${LAYER_MODULES[@]}"; do
+            TARGET="lambda/node_modules/$pkg"
+            if [ -d "$TARGET" ]; then
+              echo "🧹 Removing $TARGET"
+              rm -rf "$TARGET"
+            else
+              echo "✅ $pkg not found in lambda/node_modules — skipping"
+            fi
+          done
+
       # 5. Lambda 압축 파일 생성
       - name: Zip Lambda package
         run: |
