@@ -22,7 +22,27 @@ jobs:
 
       # 3. 의존성 설치
       - name: Install dependencies
-        run: npm ci
+        run:
+          npm ci
+
+          # 3.5 Lambda Layer 최적화 및 압축
+      - name: Optimize and Zip Lambda Layer
+        run: |
+          cd layer
+
+          echo "🔍 Removing unnecessary platform-specific binaries..."
+          rm -rf nodejs/node_modules/@next/swc-darwin-* || true
+          rm -rf nodejs/node_modules/@img/sharp-libvips-darwin-arm64 || true
+
+          echo "🧹 Removing debug/development files (.map, .json)..."
+          find nodejs -name "*.map" -type f -delete || true
+          find nodejs -name "*.json" -type f -delete || true
+
+          echo "📦 Zipping layer..."
+          zip -r ../layer.zip nodejs
+
+          echo "📏 Final zip size:"
+          du -sh ../layer.zip
 
       # 4. Next.js 빌드 및 Lambda 파일 구성
       - name: Build and prepare Lambda files
@@ -41,7 +61,7 @@ jobs:
           cp index.js lambda/index.js
 
           echo "🧹 Removing duplicated modules already in Lambda Layer..."
-          LAYER_MODULES=("next" "react" "react-dom")
+          LAYER_MODULES=("next" "react" "react-dom" "scheduler" "react-is")
           for pkg in "${LAYER_MODULES[@]}"; do
             echo "  - Removing lambda/node_modules/$pkg"
             rm -rf lambda/node_modules/$pkg
