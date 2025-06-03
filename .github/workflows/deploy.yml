@@ -9,18 +9,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. 저장소 체크아웃
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 2. Node.js 설정
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
           cache: "npm"
 
+      # 3. 의존성 설치
       - name: Install dependencies
         run: npm ci
 
+      # 4. Next.js 빌드 및 Lambda용 파일 구성
       - name: Build and prepare Lambda files
         run: |
           npm run build
@@ -36,11 +40,13 @@ jobs:
 
           cp index.js lambda/index.js
 
+      # 5. Lambda 압축 파일 생성
       - name: Zip Lambda package
         run: |
           cd lambda
           zip -r ../lambda.zip .
 
+      # 6. AWS 자격 증명 구성
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -48,21 +54,41 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
+      # 7. Lambda zip 파일 S3 업로드
       - name: Upload Lambda zip to S3
         run: |
           aws s3 cp lambda.zip s3://${{ secrets.S3_LAMBDA_ADDRESS }}/lambda/lambda.zip
 
-      - name: Update Lambda function (with Layer)
+      # 8. Lambda 코드만 업데이트
+      - name: Update Lambda function code only
         run: |
           aws lambda update-function-code \
             --function-name nextJs \
             --s3-bucket ${{ secrets.S3_LAMBDA_ADDRESS }} \
             --s3-key lambda/lambda.zip
 
+      # 9. Lambda 상태 확인 후 Layer 적용
+      - name: Wait for Lambda update to complete
+        run: |
+          echo "⏳ Waiting for Lambda to become Active..."
+          for i in {1..30}; do
+            STATUS=$(aws lambda get-function-configuration --function-name nextJs --query 'LastUpdateStatus' --output text)
+            echo "🔍 Status: $STATUS"
+            if [ "$STATUS" = "Successful" ]; then
+              echo "✅ Update completed"
+              break
+            fi
+            sleep 5
+          done
+
+      # 10. Lambda Layer 연결
+      - name: Update Lambda function configuration (Layer)
+        run: |
           aws lambda update-function-configuration \
             --function-name nextJs \
             --layers ${{ secrets.LAMBDA_LAYER_ARN }}
 
+      # 11. 정적 자산 S3 업로드
       - name: Upload static assets to S3
         run: |
           aws s3 sync public ${{ secrets.S3_STORAGE_ADDRESS }}/public --delete
@@ -71,6 +97,7 @@ jobs:
             aws s3 sync .next/static ${{ secrets.S3_STORAGE_ADDRESS }}/_next/static --delete
           fi
 
+      # 12. CloudFront 캐시 무효화
       - name: Invalidate CloudFront cache
         run: |
           if [ -n "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
