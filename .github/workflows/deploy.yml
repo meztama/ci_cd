@@ -33,22 +33,17 @@ jobs:
 
       # 4. 의존성 설치 (전체 설치)
       - name: Install all dependencies
-        run: npm ci
+        run: npm ci --omit=dev
+        # --omit=dev 옵션을 사용하여 개발 의존성은 설치하지 않음
 
       # 5. 빌드 및 Lambda 배포 디렉토리 구성
       - name: Build Next.js (full SSR build)
         run: |
           npm run build
           mkdir -p output
-
-          # ✅ 전체 .next 포함
           cp -r .next output/.next
-
-          # ✅ 전체 node_modules 포함
-          cp -r node_modules output/node_modules
-
-          # ✅ public, package.json, index.js 포함
           cp -r public output/public
+          cp -r node_modules output/node_modules
           cp package.json output/package.json
           cp index.js output/index.js
 
