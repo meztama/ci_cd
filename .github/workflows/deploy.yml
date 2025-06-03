@@ -44,7 +44,11 @@ jobs:
         run: |
           npm run build
           mkdir -p output
-          cp -r .next/standalone/* output/
+          cp -r .next/ output/.next
+          cp -r node_modules output/node_modules
+          cp -r public output/public
+          cp index.js output/index.js
+          cp server.js output/server.js # 빌드된 경우만
 
           echo "📦 Checking for static assets..."
           if [ -d .next/static ]; then
