@@ -41,7 +41,11 @@ jobs:
           npm run build
           mkdir -p output
           cp -r .next/standalone/* output/
+
+          # 👇 여기가 중요: output/.next 경로 먼저 생성
+          mkdir -p output/.next
           cp -r .next/static output/.next/static
+
           cp -r public output/public
 
       # 6. Lambda zip 압축
