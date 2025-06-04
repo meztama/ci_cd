@@ -1,12 +1,9 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 const http = require("http");
 const { Readable } = require("stream");
 const { parse } = require("url");
 const next = require("next");
 const path = require("path");
 
-// 🔧 명시적으로 config 참조
 const app = next({
   dev: false,
   conf: require("./.next/required-server-files.json"),
@@ -37,45 +34,40 @@ exports.handler = async (event, context) => {
 
     const res = new http.ServerResponse(req);
 
-    let responseBody = "";
-    let responseHeaders = {};
-
-    const resolveResponse = () =>
-      new Promise((resolve) => {
-        resolve({
-          statusCode: res.statusCode || 200,
-          headers: responseHeaders,
-          body: responseBody,
-        });
-      });
-
+    const chunks = [];
     res.write = (chunk) => {
-      responseBody += chunk;
+      if (chunk)
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     };
-    res.writeHead = (statusCode, headers) => {
+    res.writeHead = (statusCode, responseHeaders) => {
       res.statusCode = statusCode;
-      responseHeaders = headers;
-    };
-    res.end = (chunk) => {
-      if (chunk) responseBody += chunk;
-      return resolveResponse();
+      res._headers = responseHeaders || {};
     };
 
     return await new Promise((resolve) => {
       res.end = (chunk) => {
-        if (chunk) responseBody += chunk;
+        if (chunk)
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        const buffer = Buffer.concat(chunks);
+
         resolve({
           statusCode: res.statusCode || 200,
-          headers: responseHeaders,
-          body: responseBody,
+          headers: {
+            "Content-Type": res._headers?.["content-type"] || "text/html",
+            ...res._headers,
+          },
+          isBase64Encoded: true,
+          body: buffer.toString("base64"),
         });
       };
+
       handle(req, res, parse(req.url, true));
     });
   } catch (err) {
     console.error("SSR handler error:", err);
     return {
       statusCode: 500,
+      headers: { "Content-Type": "text/plain" },
       body: "Internal Server Error (SSR)",
     };
   }
