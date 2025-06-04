@@ -1,3 +1,5 @@
+# 📦 Next.js 프로젝트를 AWS Lambda + S3 + CloudFront에 배포하기 위한 GitHub Actions Workflow
+
 name: Deploy Next.js to Lambda + S3 + CloudFront (with Layer)
 
 on:
@@ -9,26 +11,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 저장소 체크아웃
+      # 1. GitHub 저장소 코드 체크아웃
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Node.js 설정
+      # 2. Node.js 환경 설정
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
           cache: "npm"
 
-      # 3. 의존성 설치
+      # 3. 프로젝트 의존성 설치
       - name: Install dependencies
         run: npm ci
 
-      # 4. jq 설치 (JSON 파싱용)
+      # 4. jq 설치 (JSON 파싱용 유틸리티)
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # 5. Lambda Layer를 위한 최소 패키지 설치 (react/react-dom만 포함)
+      # 5. Lambda Layer용 최소 의존성 패키지 설치 (react, react-dom)
       - name: Setup minimal Lambda Layer dependencies
         run: |
           mkdir -p layer/nodejs
@@ -44,16 +46,16 @@ jobs:
           }' > package.json
           npm install --omit=dev
 
-      # 6. Layer 최적화 및 압축
+      # 6. Lambda Layer 최적화 및 압축
       - name: Optimize and zip Lambda Layer
         run: |
           cd layer
-          echo "🧹 Removing unnecessary files from layer..."
+          echo "🧹 레이어 내 불필요 파일 삭제 중..."
           find nodejs -type f -name "*.md" -delete || true
           find nodejs -type f -name "*.map" -delete || true
           find nodejs -type d -name "test" -exec rm -rf {} + || true
           find nodejs -type d -name "__tests__" -exec rm -rf {} + || true
-          echo "📦 Creating layer.zip..."
+          echo "📦 layer.zip 압축 중..."
           zip -r layer.zip nodejs
 
       # 7. AWS 자격 증명 설정
@@ -64,7 +66,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # 8. Layer를 S3에 업로드하고 Lambda Layer로 배포
+      # 8. S3에 레이어 업로드 후 Lambda Layer로 배포
       - name: Upload Layer.zip to S3 and publish Lambda Layer
         run: |
           aws s3 cp layer/layer.zip s3://${{ secrets.S3_LAMBDA_ADDRESS }}/layer/layer.zip
@@ -79,7 +81,7 @@ jobs:
           echo "✅ LayerVersionArn: $LAYER_ARN"
           echo "LAMBDA_LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
-      # 9. Next.js 빌드 및 Lambda 코드 구성
+      # 9. Next.js 앱 빌드 및 Lambda 코드 구성
       - name: Build and prepare Lambda files
         run: |
           npm run build
@@ -87,26 +89,28 @@ jobs:
           cp -r .next/standalone/* lambda/
           cp index.js lambda/index.js
 
-          # Copy .next directory contents required by server
-          mkdir -p lambda/.next
-          cp .next/BUILD_ID lambda/.next/BUILD_ID
-
-          # Required server files (including routes-manifest.json, middleware-manifest.json, etc)
+          # required-server-files.json 내부 파일 목록 복사
           REQUIRED_FILES=$(node -e "console.log(require('./.next/required-server-files.json').files.join('\n'))")
           for file in $REQUIRED_FILES; do
             mkdir -p "lambda/$(dirname "$file")"
             cp "$file" "lambda/$file"
           done
 
+          # 정적 파일 추가 복사
           if [ -d ".next/static" ]; then
+            mkdir -p lambda/.next
             cp -r .next/static lambda/.next/static
           fi
 
-          echo "🧹 Removing duplicated modules in Lambda package..."
+          # next 전체 모듈 포함
+          mkdir -p lambda/node_modules/next
+          cp -r node_modules/next lambda/node_modules/
+
+          echo "🧹 중복 모듈 제거 중..."
           rm -rf lambda/node_modules/react || true
           rm -rf lambda/node_modules/react-dom || true
 
-      # 10. Lambda 코드 압축
+      # 10. Lambda 패키지 압축
       - name: Zip Lambda package
         run: |
           cd lambda
@@ -121,7 +125,7 @@ jobs:
             --s3-bucket ${{ secrets.S3_LAMBDA_ADDRESS }} \
             --s3-key lambda/lambda.zip
 
-      # 12. Lambda 상태 대기 후 Layer 연결
+      # 12. Lambda가 활성화될 때까지 대기
       - name: Wait for Lambda to become Active
         run: |
           for i in {1..30}; do
@@ -133,13 +137,14 @@ jobs:
             sleep 5
           done
 
+      # 13. 최신 레이어 연결
       - name: Attach Lambda Layer
         run: |
           aws lambda update-function-configuration \
             --function-name nextJs \
             --layers $LAMBDA_LAYER_ARN
 
-      # 13. 정적 파일 S3로 업로드
+      # 14. 정적 자산을 S3에 업로드
       - name: Upload static assets to S3
         run: |
           aws s3 sync public ${{ secrets.S3_STORAGE_ADDRESS }}/public --delete
@@ -147,7 +152,7 @@ jobs:
             aws s3 sync .next/static ${{ secrets.S3_STORAGE_ADDRESS }}/_next/static --delete
           fi
 
-      # 14. CloudFront 캐시 무효화
+      # 15. CloudFront 캐시 무효화
       - name: Invalidate CloudFront cache
         run: |
           if [ -n "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
