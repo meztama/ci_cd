@@ -86,10 +86,16 @@ jobs:
         run: |
           npm run build
           mkdir -p lambda
+
+          # standalone 디렉토리 복사
           cp -r .next/standalone/* lambda/
           cp index.js lambda/index.js
 
-          # required-server-files.json 내부 파일 목록 복사
+          # required-server-files.json 파일 자체 복사 (.next → lambda/.next)
+          mkdir -p lambda/.next
+          cp .next/required-server-files.json lambda/.next/required-server-files.json
+
+          # required-server-files.json 내부 파일 복사
           REQUIRED_FILES=$(node -e "console.log(require('./.next/required-server-files.json').files.join('\n'))")
           for file in $REQUIRED_FILES; do
             mkdir -p "lambda/$(dirname "$file")"
@@ -103,7 +109,7 @@ jobs:
           fi
 
           # next 전체 모듈 포함
-          mkdir -p lambda/node_modules/next
+          mkdir -p lambda/node_modules
           cp -r node_modules/next lambda/node_modules/
 
           echo "🧹 중복 모듈 제거 중..."
