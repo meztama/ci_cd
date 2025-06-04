@@ -4,21 +4,40 @@ import { Post } from "../packages/api/domain/posts";
 export const dynamic = "force-dynamic";
 
 export default async function SSRPage() {
-  const res = await fetch("https://jsonplaceholder.typicode.com/posts", {
-    cache: "no-store",
-  });
-  const posts = await res.json();
+  try {
+    const res = await fetch("https://jsonplaceholder.typicode.com/posts", {
+      cache: "no-store",
+    });
 
-  return (
-    <div>
-      <h1>SSR Page</h1>
-      <ul>
-        {posts.slice(0, 5).map((post: Post) => (
-          <li key={post.id}>
-            <strong>{post.title}</strong>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+    if (!res.ok) {
+      // fetch 자체는 성공했지만 4xx/5xx 에러 상태일 경우
+      console.error("❌ SSR fetch 실패:", res.status, res.statusText);
+      throw new Error(`Failed to fetch: ${res.status}`);
+    }
+
+    const posts: Post[] = await res.json();
+
+    return (
+      <div>
+        <h1>SSR Page</h1>
+        <ul>
+          {posts.slice(0, 5).map((post) => (
+            <li key={post.id}>
+              <strong>{post.title}</strong>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  } catch (error) {
+    console.error("❗ SSRPage 오류:", error);
+
+    return (
+      <div>
+        <h1>SSR Page</h1>
+        <p>⚠️ 데이터를 불러오는 중 문제가 발생했습니다.</p>
+        <p style={{ color: "gray" }}>{(error as Error).message}</p>
+      </div>
+    );
+  }
 }

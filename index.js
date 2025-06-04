@@ -5,7 +5,6 @@ const { Readable } = require("stream");
 const { parse } = require("url");
 const next = require("next");
 
-// 🔧 명시적으로 Next.js config 파일 로드
 const app = next({
   dev: false,
   conf: require("./.next/required-server-files.json"),
@@ -23,63 +22,72 @@ exports.handler = async (event, context) => {
 
     const {
       rawPath = "/",
-      rawQueryString,
+      rawQueryString = "",
       headers = {},
-      requestContext,
+      requestContext = {},
       body,
+      isBase64Encoded = false,
     } = event;
+
     const method = requestContext?.http?.method || "GET";
     const query = rawQueryString ? `?${rawQueryString}` : "";
 
-    // Lambda용 mock Request 객체 생성
+    // Lambda → Node.js Request 구성
     const req = new Readable();
     req.url = rawPath + query;
     req.method = method;
     req.headers = headers;
-    req.push(body || null);
-    req.push(null);
 
-    // Lambda용 mock Response 객체 생성
+    if (body) {
+      const buffer = isBase64Encoded
+        ? Buffer.from(body, "base64")
+        : Buffer.from(body);
+      req.push(buffer);
+    }
+    req.push(null); // 스트림 종료
+
+    // Lambda → Node.js Response 구성
     const res = new http.ServerResponse(req);
 
-    // 응답 데이터 수집용 변수
-    let responseBody = "";
     let responseHeaders = {};
+    const responseBodyChunks = [];
 
-    // Response method 오버라이드
     res.write = (chunk) => {
-      responseBody += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk;
+      responseBodyChunks.push(
+        Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+      );
     };
 
     res.writeHead = (statusCode, headers) => {
       res.statusCode = statusCode;
       responseHeaders = {
         ...headers,
-        "Content-Type": "text/html; charset=utf-8", // 💡 반드시 명시
-        "Cache-Control": "no-cache", // 선택사항: 캐싱 비활성화
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-cache",
       };
     };
 
     return await new Promise((resolve) => {
       res.end = (chunk) => {
         if (chunk) {
-          responseBody += Buffer.isBuffer(chunk)
-            ? chunk.toString("utf8")
-            : chunk;
+          responseBodyChunks.push(
+            Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+          );
         }
+
+        const finalBody = Buffer.concat(responseBodyChunks).toString("utf8");
 
         resolve({
           statusCode: res.statusCode || 200,
           headers: responseHeaders,
-          body: responseBody,
+          body: finalBody,
         });
       };
 
-      // Next.js SSR 핸들러에 요청 위임
       handle(req, res, parse(req.url, true));
     });
   } catch (err) {
-    console.error("SSR handler error:", err);
+    console.error("❌ SSR handler error:", err);
     return {
       statusCode: 500,
       headers: {
