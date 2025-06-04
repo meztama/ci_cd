@@ -85,16 +85,22 @@ jobs:
           npm run build
           mkdir -p lambda
           cp -r .next/standalone/* lambda/
+          cp index.js lambda/index.js
+
+          # Copy .next directory contents required by server
           mkdir -p lambda/.next
-          cp .next/required-server-files.json lambda/.next/required-server-files.json
-          cp .next/BUILD_ID lambda/.next/BUILD_ID  # ← ✅ 필수: Lambda 실행에 필요한 빌드 ID 파일 추가
-          # lambda 디렉터리 구성 시 추가
-          cp -r node_modules/next lambda/node_modules/
+          cp .next/BUILD_ID lambda/.next/BUILD_ID
+
+          # Required server files (including routes-manifest.json, middleware-manifest.json, etc)
+          REQUIRED_FILES=$(node -e "console.log(require('./.next/required-server-files.json').files.join('\n'))")
+          for file in $REQUIRED_FILES; do
+            mkdir -p "lambda/$(dirname "$file")"
+            cp "$file" "lambda/$file"
+          done
 
           if [ -d ".next/static" ]; then
             cp -r .next/static lambda/.next/static
           fi
-          cp index.js lambda/index.js
 
           echo "🧹 Removing duplicated modules in Lambda package..."
           rm -rf lambda/node_modules/react || true
