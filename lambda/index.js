@@ -1,12 +1,10 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 const http = require("http");
 const { Readable } = require("stream");
 const { parse } = require("url");
 const next = require("next");
 const path = require("path");
 
-// 🔧 명시적으로 config 참조
+// 🔧 명시적으로 Next.js 빌드 설정 참조
 const app = next({
   dev: false,
   conf: require("./.next/required-server-files.json"),
@@ -38,27 +36,17 @@ exports.handler = async (event, context) => {
     const res = new http.ServerResponse(req);
 
     let responseBody = "";
-    let responseHeaders = {};
-
-    const resolveResponse = () =>
-      new Promise((resolve) => {
-        resolve({
-          statusCode: res.statusCode || 200,
-          headers: responseHeaders,
-          body: responseBody,
-        });
-      });
+    let responseHeaders = {
+      "Content-Type": "text/html", // ✅ Content-Type 명시
+    };
 
     res.write = (chunk) => {
       responseBody += chunk;
     };
+
     res.writeHead = (statusCode, headers) => {
       res.statusCode = statusCode;
-      responseHeaders = headers;
-    };
-    res.end = (chunk) => {
-      if (chunk) responseBody += chunk;
-      return resolveResponse();
+      responseHeaders = { ...responseHeaders, ...headers };
     };
 
     return await new Promise((resolve) => {
@@ -76,6 +64,7 @@ exports.handler = async (event, context) => {
     console.error("SSR handler error:", err);
     return {
       statusCode: 500,
+      headers: { "Content-Type": "text/plain" },
       body: "Internal Server Error (SSR)",
     };
   }
