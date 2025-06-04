@@ -100,7 +100,7 @@ jobs:
             fi
           done
 
-          # .next/server 직접 복사 (중복 방지)
+          # .next/server 전체 복사 (중복 방지)
           cp -r .next/server lambda/.next/
 
           # 정적 파일 복사
@@ -113,9 +113,19 @@ jobs:
           mkdir -p lambda/node_modules
           cp -r node_modules/next lambda/node_modules/
 
-          # 중복된 모듈 제거
+          # Layer로 이동한 모듈 제거
           rm -rf lambda/node_modules/react || true
           rm -rf lambda/node_modules/react-dom || true
+
+          # 🔧 [추가] SSR 핸들러 누락 방지: 직접 복사
+          SSR_HANDLER_DIR=".next/server/app/ssr"
+          if [ -f "$SSR_HANDLER_DIR/page.js" ]; then
+            mkdir -p "lambda/$SSR_HANDLER_DIR"
+            cp "$SSR_HANDLER_DIR/page.js" "lambda/$SSR_HANDLER_DIR/"
+          fi
+          if [ -f "$SSR_HANDLER_DIR/page.js.nft.json" ]; then
+            cp "$SSR_HANDLER_DIR/page.js.nft.json" "lambda/$SSR_HANDLER_DIR/"
+          fi
 
       # 10. Lambda 코드 압축
       - name: 📦 Lambda 코드 압축
