@@ -1,32 +1,31 @@
-import { Post } from "../packages/api/domain/posts";
-
 // /app/ssr/page.tsx
 export const dynamic = "force-dynamic";
 
 export default async function SSRPage() {
   try {
-    const res = await fetch("https://jsonplaceholder.typicode.com/posts", {
-      cache: "no-store",
-    });
+    // const res = await fetch("https://jsonplaceholder.typicode.com/posts", {
+    //   cache: "no-store",
+    // });
 
-    if (!res.ok) {
-      // fetch 자체는 성공했지만 4xx/5xx 에러 상태일 경우
-      console.error("❌ SSR fetch 실패:", res.status, res.statusText);
-      throw new Error(`Failed to fetch: ${res.status}`);
-    }
+    // if (!res.ok) {
+    //   // fetch 자체는 성공했지만 4xx/5xx 에러 상태일 경우
+    //   console.error("❌ SSR fetch 실패:", res.status, res.statusText);
+    //   throw new Error(`Failed to fetch: ${res.status}`);
+    // }
 
-    const posts: Post[] = await res.json();
+    // const posts: Post[] = await res.json();
 
     return (
       <div>
         <h1>SSR Page</h1>
-        <ul>
+        <p>이 페이지는 서버에서 동적으로 렌더링되었습니다.</p>
+        {/* <ul>
           {posts.slice(0, 5).map((post) => (
             <li key={post.id}>
               <strong>{post.title}</strong>
             </li>
           ))}
-        </ul>
+        </ul> */}
       </div>
     );
   } catch (error) {
