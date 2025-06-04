@@ -87,9 +87,9 @@ jobs:
           cp -r .next/standalone/* lambda/
           mkdir -p lambda/.next
           cp .next/required-server-files.json lambda/.next/required-server-files.json
+          cp .next/BUILD_ID lambda/.next/BUILD_ID  # ← ✅ 필수: Lambda 실행에 필요한 빌드 ID 파일 추가
           # lambda 디렉터리 구성 시 추가
           cp -r node_modules/next lambda/node_modules/
-
 
           if [ -d ".next/static" ]; then
             cp -r .next/static lambda/.next/static
