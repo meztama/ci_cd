@@ -1,18 +1,19 @@
-const http = require("http");
-const { Readable } = require("stream");
-const { parse } = require("url");
-const next = require("next");
-const path = require("path");
+import http from "http";
+import next from "next";
+import { Readable } from "stream";
+import { parse } from "url";
+
+import requiredServerFiles from "./.next/required-server-files.json" assert { type: "json" };
 
 const app = next({
   dev: false,
-  conf: require("./.next/required-server-files.json"),
+  conf: requiredServerFiles,
 });
 const handle = app.getRequestHandler();
 
 let serverInitialized = false;
 
-exports.handler = async (event, context) => {
+exports.handler = async (event) => {
   try {
     if (!serverInitialized) {
       await app.prepare();
