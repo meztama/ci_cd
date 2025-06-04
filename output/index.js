@@ -1,16 +1,19 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-const http = require("http");
-const { Readable } = require("stream");
-const { parse } = require("url");
-const next = require("next");
+import http from "http";
+import next from "next";
+import { Readable } from "stream";
+import { parse } from "url";
 
-const app = next({ dev: false });
+import requiredServerFiles from "./.next/required-server-files.json" assert { type: "json" };
+
+const app = next({
+  dev: false,
+  conf: requiredServerFiles,
+});
 const handle = app.getRequestHandler();
 
 let serverInitialized = false;
 
-exports.handler = async (event, context) => {
+exports.handler = async (event) => {
   try {
     if (!serverInitialized) {
       await app.prepare();
@@ -20,11 +23,11 @@ exports.handler = async (event, context) => {
     const { rawPath, rawQueryString, headers, requestContext, body } = event;
 
     const method = requestContext?.http?.method || "GET";
-    const path = rawPath || "/";
+    const pathName = rawPath || "/";
     const query = rawQueryString ? `?${rawQueryString}` : "";
 
     const req = new Readable();
-    req.url = path + query;
+    req.url = pathName + query;
     req.method = method;
     req.headers = headers;
     req.push(body || null);
@@ -32,44 +35,40 @@ exports.handler = async (event, context) => {
 
     const res = new http.ServerResponse(req);
 
-    let responseBody = "";
-    let responseHeaders = {};
+    const chunks = [];
     res.write = (chunk) => {
-      responseBody += chunk;
+      if (chunk)
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     };
-    res.writeHead = (statusCode, headers) => {
+    res.writeHead = (statusCode, responseHeaders) => {
       res.statusCode = statusCode;
-      responseHeaders = headers;
+      res._headers = responseHeaders || {};
     };
-    res.end = (chunk) => {
-      if (chunk) responseBody += chunk;
-      return resolveResponse();
-    };
-
-    const resolveResponse = () =>
-      new Promise((resolve) => {
-        resolve({
-          statusCode: res.statusCode || 200,
-          headers: responseHeaders,
-          body: responseBody,
-        });
-      });
 
     return await new Promise((resolve) => {
       res.end = (chunk) => {
-        if (chunk) responseBody += chunk;
+        if (chunk)
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        const buffer = Buffer.concat(chunks);
+
         resolve({
           statusCode: res.statusCode || 200,
-          headers: responseHeaders,
-          body: responseBody,
+          headers: {
+            "Content-Type": res._headers?.["content-type"] || "text/html",
+            ...res._headers,
+          },
+          isBase64Encoded: true,
+          body: buffer.toString("base64"),
         });
       };
+
       handle(req, res, parse(req.url, true));
     });
   } catch (err) {
     console.error("SSR handler error:", err);
     return {
       statusCode: 500,
+      headers: { "Content-Type": "text/plain" },
       body: "Internal Server Error (SSR)",
     };
   }
