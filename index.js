@@ -1,19 +1,20 @@
-import http from "http";
-import next from "next";
-import { Readable } from "stream";
-import { parse } from "url";
-
-import requiredServerFiles from "./.next/required-server-files.json" assert { type: "json" };
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-require-imports */
+const http = require("http");
+const { Readable } = require("stream");
+const { parse } = require("url");
+const next = require("next");
+const path = require("path");
 
 const app = next({
   dev: false,
-  conf: requiredServerFiles,
+  conf: require("./.next/required-server-files.json"),
 });
 const handle = app.getRequestHandler();
 
 let serverInitialized = false;
 
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
   try {
     if (!serverInitialized) {
       await app.prepare();
@@ -54,8 +55,8 @@ exports.handler = async (event) => {
         resolve({
           statusCode: res.statusCode || 200,
           headers: {
-            "Content-Type": res._headers?.["content-type"] || "text/html",
             ...res._headers,
+            "Content-Type": "text/html; charset=utf-8", // 🎯 명시적으로 HTML Content-Type 지정
           },
           isBase64Encoded: true,
           body: buffer.toString("base64"),
@@ -68,7 +69,7 @@ exports.handler = async (event) => {
     console.error("SSR handler error:", err);
     return {
       statusCode: 500,
-      headers: { "Content-Type": "text/plain" },
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
       body: "Internal Server Error (SSR)",
     };
   }
