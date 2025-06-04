@@ -132,9 +132,24 @@ jobs:
             --s3-bucket ${{ secrets.S3_LAMBDA_ADDRESS }} \
             --s3-key lambda/lambda.zip
 
-      # 12. Lambda Layer 연결
-      - name: 🔗 Lambda Layer 연결
+      # 12. Lambda 상태 대기 후 Layer 연결
+      - name: Wait for Lambda update to complete and attach Layer
         run: |
+          echo "⏳ Lambda 함수 상태 확인 중..."
+          for i in {1..60}; do
+            STATUS=$(aws lambda get-function-configuration --function-name nextJs --query 'LastUpdateStatus' --output text)
+            echo "현재 상태: $STATUS"
+            if [ "$STATUS" = "Successful" ]; then
+              echo "✅ Lambda 함수 업데이트 완료됨"
+              break
+            elif [ "$STATUS" = "Failed" ]; then
+              echo "❌ Lambda 업데이트 실패"
+              exit 1
+            fi
+            sleep 5
+          done
+
+          echo "🔗 Layer 연결 중..."
           aws lambda update-function-configuration \
             --function-name nextJs \
             --layers $LAMBDA_LAYER_ARN
