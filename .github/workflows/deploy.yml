@@ -91,24 +91,26 @@ jobs:
           cp -r .next/standalone/* lambda/
           cp index.js lambda/index.js
 
-          # required-server-files.json 파일 자체 복사 (.next → lambda/.next)
+          # .next 내부의 required-server-files.json 파일도 복사
           mkdir -p lambda/.next
           cp .next/required-server-files.json lambda/.next/required-server-files.json
 
-          # required-server-files.json 내부 파일 복사
+          # required-server-files.json 내부 모든 파일 복사
           REQUIRED_FILES=$(node -e "console.log(require('./.next/required-server-files.json').files.join('\n'))")
           for file in $REQUIRED_FILES; do
-            mkdir -p "lambda/$(dirname "$file")"
-            cp "$file" "lambda/$file"
+            if [ -f "$file" ]; then
+              mkdir -p "lambda/$(dirname "$file")"
+              cp "$file" "lambda/$file"
+            fi
           done
 
-          # 정적 파일 추가 복사
+          # 정적 파일 복사
           if [ -d ".next/static" ]; then
             mkdir -p lambda/.next
             cp -r .next/static lambda/.next/static
           fi
 
-          # next 전체 모듈 포함
+          # next 모듈 포함
           mkdir -p lambda/node_modules
           cp -r node_modules/next lambda/node_modules/
 
