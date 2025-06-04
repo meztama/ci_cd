@@ -82,20 +82,21 @@ jobs:
           echo "LAMBDA_LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
       # 9. Next.js 앱 빌드 및 Lambda 코드 구성
-      - name: Build and prepare Lambda files
+      - name: 🔨 Lambda 실행 파일 및 리소스 준비
         run: |
+          # 1. Next.js 빌드 수행
           npm run build
           mkdir -p lambda
 
-          # standalone 디렉토리 복사
+          # 2. standalone 실행 파일 복사
           cp -r .next/standalone/* lambda/
           cp index.js lambda/index.js
 
-          # .next 내부의 required-server-files.json 파일도 복사
+          # 3. .next 내부 파일 (SSR 구성 요소) 복사
           mkdir -p lambda/.next
           cp .next/required-server-files.json lambda/.next/required-server-files.json
 
-          # required-server-files.json 내부 모든 파일 복사
+          # 4. required-server-files.json에 명시된 모든 파일 복사
           REQUIRED_FILES=$(node -e "console.log(require('./.next/required-server-files.json').files.join('\n'))")
           for file in $REQUIRED_FILES; do
             if [ -f "$file" ]; then
@@ -104,16 +105,20 @@ jobs:
             fi
           done
 
-          # 정적 파일 복사
+          # 5. .next/server 전체 복사 (pages/_document.js 등 SSR 필수 요소 포함)
+          cp -r .next/server lambda/.next/server
+
+          # 6. 정적 자산 복사 (.next/static 포함)
           if [ -d ".next/static" ]; then
             mkdir -p lambda/.next
             cp -r .next/static lambda/.next/static
           fi
 
-          # next 모듈 포함
+          # 7. next 모듈 복사 (standalone에 존재하지 않는 next/dist 일부 대비)
           mkdir -p lambda/node_modules
           cp -r node_modules/next lambda/node_modules/
 
+          # 8. Layer로 따로 올릴 모듈 제거 (중복 방지 및 용량 감소)
           echo "🧹 중복 모듈 제거 중..."
           rm -rf lambda/node_modules/react || true
           rm -rf lambda/node_modules/react-dom || true
